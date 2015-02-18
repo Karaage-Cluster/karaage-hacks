@@ -28,7 +28,6 @@ import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'karaage.conf.settings'
 
 import django
-django.setup()
 
 from karaage.datastores.ldap_schemas import ad_account_group
 from karaage.people.models import Person, Group
@@ -102,4 +101,5 @@ group_manager = ad_account_group.objects.db_manager(
     settings={}, using="default")
 
 if __name__ == "__main__":
+    django.setup()
     main()
