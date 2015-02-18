@@ -1,0 +1,105 @@
+#!/usr/bin/python
+# Copyright 2015 VPAC
+#
+# This file is part of Karaage.
+#
+# Karaage is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Karaage is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Karaage  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import datetime
+
+from ldap3.core.exceptions import LDAPSizeLimitExceededResult
+
+import os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'karaage.conf.settings'
+
+import django
+django.setup()
+
+from karaage.datastores.ldap_schemas import ad_account_group
+from karaage.people.models import Person, Group
+from karaage.machines.models import Account, MachineCategory
+from karaage.institutes.models import Institute
+
+
+def sync_account(member, institute, mc):
+    print(" + account dn:", member.dn)
+
+    values = {
+        'email': member.mail,
+        'short_name': member.givenName,
+        'full_name': member.displayName,
+        'institute': institute,
+    }
+
+    person, _ = Person.objects.update_or_create(
+        username=member.uid, defaults=values)
+    print("   person id:", person.id)
+
+    values = {
+        'shell': member.loginShell,
+        'login_enabled': False,
+        'date_created': datetime.datetime.today(),
+    }
+
+    account, _ = Account.objects.update_or_create(
+        person=person, machine_category=mc, defaults=values)
+    print("   account id:", account.id)
+
+
+def main():
+    global group_manager
+
+    group, _ = Group.objects.get_or_create(name="linuxusers")
+    institute, _ = Institute.objects.update_or_create(
+        name="Sydney", defaults={'group': group})
+    mc, _ = MachineCategory.objects.update_or_create(
+        name="default", defaults={'datastore': 'dummy'})
+
+    try:
+        print()
+        print("syncing accounts")
+        print("----------------")
+        group = group_manager.get(cn="HPC-ACL")
+        for member in group.primary_accounts.all():
+            print("primary")
+            sync_account(member, institute, mc)
+        for member in group.secondary_accounts.all():
+            print("secondary")
+            sync_account(member, institute, mc)
+
+        # FIXME: group name should not be hardcoded
+        print()
+        print("syncing groups")
+        print("--------------")
+        for group_name in ["RDS-ICT-V3TEST-RW"]:
+            group = group_manager.get(cn=group_name)
+            print(group.dn)
+            print(group.cn)
+            print(group.gidNumber)
+
+    except LDAPSizeLimitExceededResult:
+        print("size exceeded")
+        exit(1)
+
+
+# FIXME: we should not hardcode settings here, for read only should be ok.
+group_manager = ad_account_group.objects.db_manager(
+    settings={}, using="default")
+
+if __name__ == "__main__":
+    main()
