@@ -58,6 +58,7 @@ def sync_account(member, institute, mc):
         print("Created person %s:" % person)
 
     values = {
+        'username': member.uid,
         'shell': member.loginShell,
         'login_enabled': False,
         'date_created': datetime.datetime.today(),
