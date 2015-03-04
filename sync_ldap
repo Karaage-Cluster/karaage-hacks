@@ -152,7 +152,7 @@ def main():
         exit(1)
 
 
-# FIXME: we should not hardcode settings here, for read only should be ok.
+# FIXME: we should not hard code settings here, for read only should be ok.
 group_manager = ad_account_group.objects.db_manager(
     settings={}, using="default")
 
