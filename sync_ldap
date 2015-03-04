@@ -28,12 +28,19 @@ import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'karaage.conf.settings'
 
 import django
+from django.conf import settings
 
 from karaage.datastores.ldap_schemas import ad_account_group
 from karaage.people.models import Person, Group
 from karaage.machines.models import Account, MachineCategory
+from karaage.projects.models import Project
 from karaage.institutes.models import Institute
 
+def get_group_members(group):
+    for member in group.primary_accounts.all():
+        yield member
+    for member in group.secondary_accounts.all():
+        yield member
 
 def sync_account(member, institute, mc):
     print(" + account dn:", member.dn)
@@ -60,12 +67,39 @@ def sync_account(member, institute, mc):
     print("   account id:", account.id)
 
 
+def sync_group_members(group, people):
+    """Synchronise membership list with minimal updates."""
+    # determine old set of member ids
+    old_member_ids = set(group.members.values_list('pk', flat=True))
+
+    # determine new set of member ids
+    new_member_ids = set()
+    for person in people:
+        if hasattr(person, 'pk'):
+            person_id = person.pk
+        else:
+            person_id = int(person)
+        new_member_ids.add(person_id)
+
+    # people to be added
+    add_member_ids = new_member_ids.difference(old_member_ids)
+    if add_member_ids:
+        group.members.add(
+            *[tmp_person_id for tmp_person_id in add_member_ids])
+
+    # people to be removed
+    del_member_ids = old_member_ids.difference(new_member_ids)
+    if del_member_ids:
+        group.members.remove(
+            *[tmp_person_id for tmp_person_id in del_member_ids])
+
+
 def main():
     global group_manager
 
     group, _ = Group.objects.get_or_create(name="linuxusers")
     institute, _ = Institute.objects.update_or_create(
-        name="Sydney", defaults={'group': group})
+        group=group, defaults={'name': 'Sydney'})
     mc, _ = MachineCategory.objects.update_or_create(
         name="default", defaults={'datastore': 'dummy'})
 
@@ -74,22 +108,44 @@ def main():
         print("syncing accounts")
         print("----------------")
         group = group_manager.get(cn="HPC-ACL")
-        for member in group.primary_accounts.all():
-            print("primary")
-            sync_account(member, institute, mc)
-        for member in group.secondary_accounts.all():
-            print("secondary")
+        for member in get_group_members(group):
             sync_account(member, institute, mc)
 
-        # FIXME: group name should not be hardcoded
         print()
         print("syncing groups")
         print("--------------")
-        for group_name in ["RDS-ICT-V3TEST-RW"]:
+        for group_name, group_settings in settings.SYNC_GROUPS.items():
             group = group_manager.get(cn=group_name)
-            print(group.dn)
-            print(group.cn)
-            print(group.gidNumber)
+            print(" + group dn:", group.dn)
+
+            i_id = group_settings['institute']
+            i_name = settings.SYNC_INSTITUTES[i_id]['name']
+            i_group, _ = Group.objects.get_or_create(name=i_id)
+            i, _ = Institute.objects.update_or_create(group=i_group, defaults={
+                'name': i_name,
+            })
+            print("   institute id:", institute.id)
+
+            p_id = group_settings['project']
+            p_group, _ = Group.objects.get_or_create(name=group_name)
+            p, _ = Project.objects.update_or_create(group=p_group, defaults={
+                'pid': p_id,
+                'name': p_id,
+                'description': 'Project auto created from %s' % group_name,
+                'institute': i,
+            })
+            p.activate(approved_by=None)
+            print("   project id:", p.id)
+
+            people = []
+            for member in get_group_members(group):
+                try:
+                    person = Person.objects.get(username=member.uid)
+                    people.append(person.pk)
+                except Person.DoesNotExist:
+                    print("   person username %s with does not exist." % member.uid)
+            sync_group_members(p_group, people)
+            print("   members:", people)
 
     except LDAPSizeLimitExceededResult:
         print("size exceeded")
