@@ -36,15 +36,15 @@ from karaage.machines.models import Account, MachineCategory
 from karaage.projects.models import Project
 from karaage.institutes.models import Institute
 
+
 def get_group_members(group):
     for member in group.primary_accounts.all():
         yield member
     for member in group.secondary_accounts.all():
         yield member
 
-def sync_account(member, institute, mc):
-    print(" + account dn:", member.dn)
 
+def sync_account(member, institute, mc):
     values = {
         'email': member.mail,
         'short_name': member.givenName,
@@ -52,9 +52,10 @@ def sync_account(member, institute, mc):
         'institute': institute,
     }
 
-    person, _ = Person.objects.update_or_create(
+    person, created = Person.objects.update_or_create(
         username=member.uid, defaults=values)
-    print("   person id:", person.id)
+    if created:
+        print("Created person %s:" % person)
 
     values = {
         'shell': member.loginShell,
@@ -62,9 +63,11 @@ def sync_account(member, institute, mc):
         'date_created': datetime.datetime.today(),
     }
 
-    account, _ = Account.objects.update_or_create(
+    account, created = Account.objects.update_or_create(
         person=person, machine_category=mc, defaults=values)
-    print("   account id:", account.id)
+
+    if created:
+        print("Created account %s:" % account.id)
 
 
 def sync_group_members(group, people):
@@ -84,12 +87,14 @@ def sync_group_members(group, people):
     # people to be added
     add_member_ids = new_member_ids.difference(old_member_ids)
     if add_member_ids:
+        print("Group %s adding %s" % (group, add_member_ids))
         group.members.add(
             *[tmp_person_id for tmp_person_id in add_member_ids])
 
     # people to be removed
     del_member_ids = old_member_ids.difference(new_member_ids)
     if del_member_ids:
+        print("Group %s removing %s" % (group, del_member_ids))
         group.members.remove(
             *[tmp_person_id for tmp_person_id in del_member_ids])
 
@@ -104,38 +109,37 @@ def main():
         name="default", defaults={'datastore': 'dummy'})
 
     try:
-        print()
-        print("syncing accounts")
-        print("----------------")
         group = group_manager.get(cn="HPC-ACL")
         for member in get_group_members(group):
             sync_account(member, institute, mc)
 
-        print()
-        print("syncing groups")
-        print("--------------")
         for group_name, group_settings in settings.SYNC_GROUPS.items():
             group = group_manager.get(cn=group_name)
-            print(" + group dn:", group.dn)
 
             i_id = group_settings['institute']
             i_name = settings.SYNC_INSTITUTES[i_id]['name']
-            i_group, _ = Group.objects.get_or_create(name=i_id)
-            i, _ = Institute.objects.update_or_create(group=i_group, defaults={
+            i_group, c_group = Group.objects.get_or_create(name=i_id)
+            i, c_institute = Institute.objects.update_or_create(group=i_group, defaults={
                 'name': i_name,
             })
-            print("   institute id:", institute.id)
+            if c_group:
+                print("Created group %s" % i_group)
+            if c_institute:
+                print("Created institute %s" % i)
 
             p_id = group_settings['project']
-            p_group, _ = Group.objects.get_or_create(name=group_name)
-            p, _ = Project.objects.update_or_create(group=p_group, defaults={
+            p_group, c_group = Group.objects.get_or_create(name=group_name)
+            p, c_project = Project.objects.update_or_create(group=p_group, defaults={
                 'pid': p_id,
                 'name': p_id,
                 'description': 'Project auto created from %s' % group_name,
                 'institute': i,
             })
             p.activate(approved_by=None)
-            print("   project id:", p.id)
+            if c_group:
+                print("Created group %s" % p_group)
+            if c_project:
+                print("Created project %s" % p)
 
             people = []
             for member in get_group_members(group):
@@ -143,9 +147,8 @@ def main():
                     person = Person.objects.get(username=member.uid)
                     people.append(person.pk)
                 except Person.DoesNotExist:
-                    print("   person username %s with does not exist." % member.uid)
+                    print("Person username %s with does not exist." % member.uid)
             sync_group_members(p_group, people)
-            print("   members:", people)
 
     except LDAPSizeLimitExceededResult:
         print("size exceeded")
