@@ -55,7 +55,7 @@ def sync_account(member, institute, mc):
     person, created = Person.objects.update_or_create(
         username=member.uid, defaults=values)
     if created:
-        print("Created person %s:" % person)
+        print("Created person %s." % person)
 
     values = {
         'username': member.uid,
@@ -68,7 +68,7 @@ def sync_account(member, institute, mc):
         person=person, machine_category=mc, defaults=values)
 
     if created:
-        print("Created account %s:" % account.id)
+        print("Created account %s." % account.id)
 
 
 def sync_group_members(group, people):
@@ -88,14 +88,14 @@ def sync_group_members(group, people):
     # people to be added
     add_member_ids = new_member_ids.difference(old_member_ids)
     if add_member_ids:
-        print("Group %s adding %s" % (group, add_member_ids))
+        print("Group %s adding %s." % (group, add_member_ids))
         group.members.add(
             *[tmp_person_id for tmp_person_id in add_member_ids])
 
     # people to be removed
     del_member_ids = old_member_ids.difference(new_member_ids)
     if del_member_ids:
-        print("Group %s removing %s" % (group, del_member_ids))
+        print("Group %s removing %s." % (group, del_member_ids))
         group.members.remove(
             *[tmp_person_id for tmp_person_id in del_member_ids])
 
@@ -124,23 +124,23 @@ def main():
                 'name': i_name,
             })
             if c_group:
-                print("Created group %s" % i_group)
+                print("Created group %s." % i_group)
             if c_institute:
-                print("Created institute %s" % i)
+                print("Created institute %s." % i)
 
             p_id = group_settings['project']
             p_group, c_group = Group.objects.get_or_create(name=group_name)
             p, c_project = Project.objects.update_or_create(group=p_group, defaults={
                 'pid': p_id,
                 'name': p_id,
-                'description': 'Project auto created from %s' % group_name,
+                'description': 'Project auto created from %s.' % group_name,
                 'institute': i,
             })
             p.activate(approved_by=None)
             if c_group:
-                print("Created group %s" % p_group)
+                print("Created group %s." % p_group)
             if c_project:
-                print("Created project %s" % p)
+                print("Created project %s." % p)
 
             people = []
             for member in get_group_members(group):
@@ -152,7 +152,7 @@ def main():
             sync_group_members(p_group, people)
 
     except LDAPSizeLimitExceededResult:
-        print("size exceeded")
+        print("size exceeded.")
         exit(1)
 
 

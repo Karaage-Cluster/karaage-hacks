@@ -70,4 +70,4 @@ except:
     import traceback
     # traceback.print_exc()
     e.reject(
-        "%s hook failed with %s. Please contact Admin" % (e.hook_name, sys.exc_info()[:2]))
+        "%s hook failed with %s. Please contact Admin." % (e.hook_name, sys.exc_info()[:2]))
