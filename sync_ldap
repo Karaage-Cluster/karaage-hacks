@@ -33,8 +33,8 @@ from django.conf import settings
 from karaage.datastores.ldap_schemas import ad_account_group
 from karaage.people.models import Person, Group
 from karaage.machines.models import Account, MachineCategory
-from karaage.projects.models import Project
-from karaage.institutes.models import Institute
+from karaage.projects.models import Project, ProjectQuota
+from karaage.institutes.models import Institute, InstituteQuota
 
 
 def get_group_members(group):
@@ -118,6 +118,7 @@ def main():
         'description': 'Default catch all project',
         'institute': institute,
     })
+    pq, _ = ProjectQuota.objects.update_or_create(project=default_project, machine_category=mc, defaults={})
 
     try:
         group = group_manager.get(cn="HPC-ACL")
@@ -133,6 +134,10 @@ def main():
             i, c_institute = Institute.objects.update_or_create(group=i_group, defaults={
                 'name': i_name,
             })
+            iq, _ = InstituteQuota.objects.update_or_create(institute=institute, machine_category=mc, defaults={
+                'quota': 0,
+            })
+
             if c_group:
                 print("Created group %s." % i_group)
             if c_institute:
@@ -146,6 +151,7 @@ def main():
                 'description': 'Project auto created from %s.' % group_name,
                 'institute': i,
             })
+            pq, _ = ProjectQuota.objects.update_or_create(project=p, machine_category=mc, defaults={})
             p.activate(approved_by=None)
             if c_group:
                 print("Created group %s." % p_group)
