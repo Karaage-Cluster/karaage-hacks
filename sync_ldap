@@ -44,7 +44,7 @@ def get_group_members(group):
         yield member
 
 
-def sync_account(member, institute, mc):
+def sync_account(member, institute, mc, default_group):
     values = {
         'email': member.mail,
         'short_name': member.givenName,
@@ -56,6 +56,8 @@ def sync_account(member, institute, mc):
         username=member.uid, defaults=values)
     if created:
         print("Created person %s." % person)
+
+    default_group.members.add(person)
 
     values = {
         'username': member.uid,
@@ -109,10 +111,18 @@ def main():
     mc, _ = MachineCategory.objects.update_or_create(
         name="default", defaults={'datastore': 'dummy'})
 
+    default_group, _ = Group.objects.get_or_create(name="default")
+    default_project, _ = Project.objects.update_or_create(group=default_group, defaults={
+        'pid': 'default',
+        'name': 'default',
+        'description': 'Default catch all project',
+        'institute': institute,
+    })
+
     try:
         group = group_manager.get(cn="HPC-ACL")
         for member in get_group_members(group):
-            sync_account(member, institute, mc)
+            sync_account(member, institute, mc, default_group)
 
         for group_name, group_settings in settings.SYNC_GROUPS.items():
             group = group_manager.get(cn=group_name)
