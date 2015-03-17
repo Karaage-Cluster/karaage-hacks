@@ -16,6 +16,8 @@ for my_path in my_paths:
 if "/usr/lib64/python2.6" in sys.path:
     sys.path.remove("/usr/lib64/python2.6")
 
+import encodings.ascii
+
 import pbs
 
 try:
