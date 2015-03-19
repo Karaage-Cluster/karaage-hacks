@@ -62,8 +62,11 @@ try:
             "The project %s is invalid." % project)
 
     if e.requestor not in members:
-        e.reject(
-            "User %s is not a member of project %s." % (e.requestor, project))
+       e.reject(
+           "User %s is not a member of project %s." % (e.requestor, project))
+
+    assert "," not in project
+    e.job.group_list = pbs.group_list(project)
 
 except SystemExit:
     pass
