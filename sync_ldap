@@ -103,6 +103,16 @@ def sync_group_members(group, people):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Copy LDAP to Karaage",
+    )
+
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Print Debugging Messages")
+
+    args = parser.parse_args()
+
     global group_manager
 
     group, _ = Group.objects.get_or_create(name="linuxusers")
@@ -165,8 +175,10 @@ def main():
                     person = Person.objects.get(username=member.uid)
                     people.append(person.pk)
                 except Person.DoesNotExist:
-                    print("Person username %s from group %s with does not exist, probably not in the HPC-ACL group."
-                          % (member.uid, group.cn))
+                    if args.debug:
+                        print(
+                            "Person username %s from group %s with does not exist, probably not in the HPC-ACL group."
+                            % (member.uid, group.cn))
             sync_group_members(p_group, people)
 
     except LDAPSizeLimitExceededResult:
