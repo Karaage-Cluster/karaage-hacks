@@ -106,7 +106,7 @@ def sync_group_members(group, people):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Copy LDAP to Karaage",
+        description="Copy LDAP to Karaage.",
     )
 
     parser.add_argument(
