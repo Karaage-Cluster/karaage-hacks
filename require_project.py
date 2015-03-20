@@ -53,7 +53,7 @@ try:
 
     if e.job.project is None:
         e.reject(
-            "The project has not been supplied.")
+            "The project has not been supplied. Please specify project with '-P <project>'.")
     project = str(e.job.project)
 
     members = server.get_project_members(username, password, project)
