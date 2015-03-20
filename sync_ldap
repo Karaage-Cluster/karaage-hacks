@@ -27,6 +27,8 @@ from ldap3.core.exceptions import LDAPSizeLimitExceededResult
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'karaage.conf.settings'
 
+import argparse
+
 import django
 from django.conf import settings
 
