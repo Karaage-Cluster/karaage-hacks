@@ -143,11 +143,12 @@ def main():
             if c_institute:
                 print("Created institute %s." % i)
 
-            p_id = group_settings['project']
+            p_id = group_name
+            p_name = group_settings['project']
             p_group, c_group = Group.objects.get_or_create(name=group_name)
             p, c_project = Project.objects.update_or_create(group=p_group, defaults={
                 'pid': p_id,
-                'name': p_id,
+                'name': p_name,
                 'description': 'Project auto created from %s.' % group_name,
                 'institute': i,
             })
