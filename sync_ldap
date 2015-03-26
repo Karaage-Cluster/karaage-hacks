@@ -22,7 +22,7 @@ from __future__ import unicode_literals
 
 import datetime
 
-from ldap3.core.exceptions import LDAPSizeLimitExceededResult
+from ldap3.core import exceptions
 
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'karaage.conf.settings'
@@ -104,17 +104,7 @@ def sync_group_members(group, people):
             *[tmp_person_id for tmp_person_id in del_member_ids])
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Copy LDAP to Karaage.",
-    )
-
-    parser.add_argument(
-        "--debug", action="store_true",
-        help="Print Debugging Messages")
-
-    args = parser.parse_args()
-
+def run_sync(debug):
     global group_manager
 
     group, _ = Group.objects.get_or_create(name="linuxusers")
@@ -135,67 +125,89 @@ def main():
     pq, _ = ProjectQuota.objects.update_or_create(
         project=default_project, machine_category=mc, defaults={})
 
-    try:
-        group = group_manager.get(cn="HPC-ACL")
+    group = group_manager.get(cn="HPC-ACL")
+    for member in get_group_members(group):
+        sync_account(member, institute, mc, default_group)
+
+    for group_name, group_settings in settings.SYNC_GROUPS.items():
+        group = group_manager.get(cn=group_name)
+
+        i_id = group_settings['institute']
+        i_name = settings.SYNC_INSTITUTES[i_id]['name']
+        i_group, c_group = Group.objects.get_or_create(name=i_id)
+        i, c_institute = Institute.objects.update_or_create(
+            group=i_group, defaults={
+                'name': i_name,
+            }
+        )
+        iq, _ = InstituteQuota.objects.update_or_create(
+            institute=institute, machine_category=mc, defaults={
+                'quota': 0,
+            }
+        )
+
+        if c_group:
+            print("Created group %s." % i_group)
+        if c_institute:
+            print("Created institute %s." % i)
+
+        p_id = group_name
+        p_name = group_settings['project']
+        p_group, c_group = Group.objects.get_or_create(name=group_name)
+        p, c_project = Project.objects.update_or_create(
+            group=p_group, defaults={
+                'pid': p_id,
+                'name': p_name,
+                'description': 'Project auto created from %s.'
+                % group_name,
+                'institute': i,
+            }
+        )
+        pq, _ = ProjectQuota.objects.update_or_create(
+            project=p, machine_category=mc, defaults={})
+        p.activate(approved_by=None)
+        if c_group:
+            print("Created group %s." % p_group)
+        if c_project:
+            print("Created project %s." % p)
+
+        people = []
         for member in get_group_members(group):
-            sync_account(member, institute, mc, default_group)
+            try:
+                person = Person.objects.get(username=member.uid)
+                people.append(person.pk)
+            except Person.DoesNotExist:
+                if debug:
+                    print(
+                        "Person username %s from group %s does not exist, "
+                        "probably not in the HPC-ACL group."
+                        % (member.uid, group.cn))
+        sync_group_members(p_group, people)
 
-        for group_name, group_settings in settings.SYNC_GROUPS.items():
-            group = group_manager.get(cn=group_name)
 
-            i_id = group_settings['institute']
-            i_name = settings.SYNC_INSTITUTES[i_id]['name']
-            i_group, c_group = Group.objects.get_or_create(name=i_id)
-            i, c_institute = Institute.objects.update_or_create(
-                group=i_group, defaults={
-                    'name': i_name,
-                }
-            )
-            iq, _ = InstituteQuota.objects.update_or_create(
-                institute=institute, machine_category=mc, defaults={
-                    'quota': 0,
-                }
-            )
+def main():
+    parser = argparse.ArgumentParser(
+        description="Copy LDAP to Karaage.",
+    )
 
-            if c_group:
-                print("Created group %s." % i_group)
-            if c_institute:
-                print("Created institute %s." % i)
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Print Debugging Messages")
 
-            p_id = group_name
-            p_name = group_settings['project']
-            p_group, c_group = Group.objects.get_or_create(name=group_name)
-            p, c_project = Project.objects.update_or_create(
-                group=p_group, defaults={
-                    'pid': p_id,
-                    'name': p_name,
-                    'description': 'Project auto created from %s.'
-                    % group_name,
-                    'institute': i,
-                }
-            )
-            pq, _ = ProjectQuota.objects.update_or_create(
-                project=p, machine_category=mc, defaults={})
-            p.activate(approved_by=None)
-            if c_group:
-                print("Created group %s." % p_group)
-            if c_project:
-                print("Created project %s." % p)
+    args = parser.parse_args()
+    tries = 0
 
-            people = []
-            for member in get_group_members(group):
-                try:
-                    person = Person.objects.get(username=member.uid)
-                    people.append(person.pk)
-                except Person.DoesNotExist:
-                    if args.debug:
-                        print(
-                            "Person username %s from group %s does not exist, "
-                            "probably not in the HPC-ACL group."
-                            % (member.uid, group.cn))
-            sync_group_members(p_group, people)
-
-    except LDAPSizeLimitExceededResult:
+    try:
+        for tries in range(0, 2):
+            try:
+                if tries > 0:
+                    print("Retry %d" % tries)
+                run_sync(args.debug)
+                break
+            except exceptions.LDAPSocketOpenError as e:
+                if args.debug:
+                    print("Connection failed: %s" % e)
+    except exceptions.LDAPSizeLimitExceededResult:
         print("size exceeded.")
         exit(1)
 
