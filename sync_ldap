@@ -124,13 +124,16 @@ def main():
         name="default", defaults={'datastore': 'dummy'})
 
     default_group, _ = Group.objects.get_or_create(name="default")
-    default_project, _ = Project.objects.update_or_create(group=default_group, defaults={
-        'pid': 'default',
-        'name': 'default',
-        'description': 'Default catch all project',
-        'institute': institute,
-    })
-    pq, _ = ProjectQuota.objects.update_or_create(project=default_project, machine_category=mc, defaults={})
+    default_project, _ = Project.objects.update_or_create(
+        group=default_group, defaults={
+            'pid': 'default',
+            'name': 'default',
+            'description': 'Default catch all project',
+            'institute': institute,
+        }
+    )
+    pq, _ = ProjectQuota.objects.update_or_create(
+        project=default_project, machine_category=mc, defaults={})
 
     try:
         group = group_manager.get(cn="HPC-ACL")
@@ -143,12 +146,16 @@ def main():
             i_id = group_settings['institute']
             i_name = settings.SYNC_INSTITUTES[i_id]['name']
             i_group, c_group = Group.objects.get_or_create(name=i_id)
-            i, c_institute = Institute.objects.update_or_create(group=i_group, defaults={
-                'name': i_name,
-            })
-            iq, _ = InstituteQuota.objects.update_or_create(institute=institute, machine_category=mc, defaults={
-                'quota': 0,
-            })
+            i, c_institute = Institute.objects.update_or_create(
+                group=i_group, defaults={
+                    'name': i_name,
+                }
+            )
+            iq, _ = InstituteQuota.objects.update_or_create(
+                institute=institute, machine_category=mc, defaults={
+                    'quota': 0,
+                }
+            )
 
             if c_group:
                 print("Created group %s." % i_group)
@@ -158,13 +165,17 @@ def main():
             p_id = group_name
             p_name = group_settings['project']
             p_group, c_group = Group.objects.get_or_create(name=group_name)
-            p, c_project = Project.objects.update_or_create(group=p_group, defaults={
-                'pid': p_id,
-                'name': p_name,
-                'description': 'Project auto created from %s.' % group_name,
-                'institute': i,
-            })
-            pq, _ = ProjectQuota.objects.update_or_create(project=p, machine_category=mc, defaults={})
+            p, c_project = Project.objects.update_or_create(
+                group=p_group, defaults={
+                    'pid': p_id,
+                    'name': p_name,
+                    'description': 'Project auto created from %s.'
+                    % group_name,
+                    'institute': i,
+                }
+            )
+            pq, _ = ProjectQuota.objects.update_or_create(
+                project=p, machine_category=mc, defaults={})
             p.activate(approved_by=None)
             if c_group:
                 print("Created group %s." % p_group)
@@ -179,7 +190,8 @@ def main():
                 except Person.DoesNotExist:
                     if args.debug:
                         print(
-                            "Person username %s from group %s with does not exist, probably not in the HPC-ACL group."
+                            "Person username %s from group %s does not exist, "
+                            "probably not in the HPC-ACL group."
                             % (member.uid, group.cn))
             sync_group_members(p_group, people)
 
