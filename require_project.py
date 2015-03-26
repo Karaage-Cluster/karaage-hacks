@@ -55,7 +55,7 @@ try:
         e.reject(
             "The project has not been supplied. Please specify "
             "project with '-P <project>'.")
-    project = str(e.job.project).upper()
+    project = str(e.job.project)
 
     members = server.get_project_members(username, password, project)
     if isinstance(members, str):
